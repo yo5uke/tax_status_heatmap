@@ -1,0 +1,234 @@
+---
+title: "課税状況ヒートマップ"
+format: 
+  dashboard: 
+    theme: minty
+    nav-buttons: 
+      - icon: house-door-fill
+        href: https://yo5uke.com/pages/software/
+      - icon: github
+        href: https://github.com/yo5uke/tax_revenue_heatmap
+lang: ja
+server: shiny
+---
+
+```{r}
+#| context: setup
+
+library(shiny)
+library(shinyWidgets)
+library(tidyverse)
+library(sf)
+library(leaflet)
+source("helpers.R")
+```
+
+# {.sidebar}
+
+```{r}
+br()
+helpText(
+  "都道府県ごとの所得税、法人税、消費税額をマッピングしています。"
+)
+
+br()
+
+selectInput("tax_type", "税の種類", 
+            choices = c("所得税（合計）", "申告所得税", "源泉所得税", "法人税", "消費税"), 
+            selected = "所得税（合計）")
+
+sliderTextInput("year", "表示する年度", 
+                choices = seq(2007, 2022, by = 1), 
+                selected = 2022, 
+                grid = TRUE)
+
+br()
+
+
+div(
+  style = "text-align: center;", 
+  actionButton("show_source", "📦 データ出典等")
+)
+```
+
+
+# プロット
+
+```{r}
+leafletOutput("map")
+```
+
+```{r}
+#| context: server
+
+observeEvent(input$show_source, {
+  showModal(modalDialog(
+    title = "📦 データ出典・ライセンス・ソースコード", 
+    HTML("
+      <div style='line-height: 1.6; font-size: 95%;'>
+        <h4>📊 データ出典</h4>
+        <p>本アプリでは、以下のデータをもとに作成しています。</p>
+        <ul style='padding-left: 20px;'>
+          <li>
+            国税庁『税務統計』（2007～2022年）：
+            <a href='https://www.e-stat.go.jp/stat-search/files?page=1&toukei=00351010&tstat=000001043366' target='_blank'>
+              e-Stat
+            </a>
+            より
+          </li>
+          <li>
+            国土数値情報ダウンロードサイト：
+            2024年1月1日時点の
+            <a href='https://www.nta.go.jp/publication/statistics/kokuzeicho/tokei.htm' target='_blank'>
+            行政区域データ
+            </a><br>
+            ※ データ軽量化のため <code>rmapshaper::ms_simplify()</code> を使用して簡素化しています。
+          </li>
+        </ul>
+
+        <h4>📝 ライセンス</h4>
+        <p>
+          このアプリは <strong>MITライセンス</strong> の下で公開されています。<br>
+          自由に利用・改変が可能ですが、著作権表示とライセンス文の保持が必要です。
+        </p>
+
+        <h4>🔗 ソースコード</h4>
+        <p>
+          GitHub リポジトリはこちら：<br>
+          <a href='https://github.com/yo5uke/tax_revenue_heatmap' target='_blank'>
+            https://github.com/yo5uke/tax_revenue_heatmap
+          </a>
+        </p>
+      </div>
+    "), 
+    easyClose = TRUE, 
+    footer = modalButton("閉じる"), 
+    size = "l"
+  ))
+})
+
+selected_col <- reactive({
+  if (input$tax_type == "所得税（合計）") {
+    return("shotoku")
+  } else if (input$tax_type == "申告所得税") {
+    return("shotokuShinkoku")
+  } else if (input$tax_type == "源泉所得税") {
+    return("shotokuGensen")
+  } else if (input$tax_type == "法人税") {
+    return("hojin")
+  } else if (input$tax_type == "消費税") {
+    return("shohi")
+  }
+})
+
+observe({
+  req(input$tax_type, input$year)
+  
+  withProgress(message = "地図を更新中...", value = 0, {
+    
+    incProgress(0.2, detail = "該当年のデータを抽出中...")
+    
+    df_year <- df |> 
+      filter(year == input$year)
+    
+    incProgress(0.2, detail = "該当変数を抽出中...")
+    
+    col_name <- selected_col()
+    
+    df_selected <- df_year |> 
+      mutate(val = .data[[col_name]])
+    
+    if (input$tax_type %in% c("所得税（合計）", "源泉所得税")) {
+      df_selected <- df_selected |> 
+        mutate(val_bin = pmax(pmin(val, 10000000), 0))
+    } else if (input$tax_type == "申告所得税") {
+      df_selected <- df_selected |> 
+        mutate(val_bin = pmax(pmin(val, 500000), 0))
+    } else  {
+      df_selected <- df_selected |> 
+        mutate(val_bin = pmax(pmin(val, 1000000), 0))
+    }
+    
+    incProgress(0.2, detail = "カラーパレットを作成中")
+    
+    if (input$tax_type == "所得税（合計）") {
+      breaks <- c(0, 50000, 100000, 200000, 500000, 1000000, 5000000, 10000000)
+    } else if (input$tax_type == "申告所得税") {
+      breaks <- c(0, 10000, 30000, 50000, 100000, 200000, 300000, 500000)
+    } else if (input$tax_type == "源泉所得税") {
+      breaks <- c(0, 50000, 100000, 200000, 500000, 1000000, 5000000, 10000000)
+    } else if (input$tax_type == "法人税") {
+      breaks <- c(0, 25000, 50000, 75000, 100000, 300000, 500000, 1000000)
+    } else if (input$tax_type == "消費税") {
+      breaks <- c(0, 50000, 75000, 100000, 150000, 300000, 500000, 1000000)
+    }
+    
+    if (max(df_selected$val, na.rm = TRUE) > max(breaks)) {
+      breaks <- c(breaks, max(df_selected$val_bin, na.rm = TRUE) * 1.1)
+    }
+    
+    pal <- colorBin("YlOrRd", domain = df_selected$val_bin, bins = breaks)
+    
+    legend_title <- case_when(
+      input$tax_type == "所得税（合計）" ~ 
+        paste0("所得税（単位：百万円）<br>", input$year, "年度"), 
+      input$tax_type == "申告所得税" ~ 
+        paste0("申告所得税（単位：百万円）<br>", input$year, "年度"), 
+      input$tax_type == "源泉所得税" ~ 
+        paste0("源泉所得税（単位：百万円）<br>", input$year, "年度"), 
+      input$tax_type == "法人税" ~ 
+        paste0("法人税（単位：百万円）<br>", input$year, "年度"), 
+      input$tax_type == "消費税" ~ 
+        paste0("消費税（単位：百万円）<br>", input$year, "年度"), 
+    )
+    
+    popup_text <- paste0(
+      df_selected$name_pref, "<br>", input$year, "年度", "<br>", 
+      input$tax_type, "：", format(df_selected$val, big.mark = ","), "百万円")
+    
+    leafletProxy("map", data = df_selected) |> 
+      clearShapes() |> 
+      clearControls() |> 
+      addPolygons(
+        fillColor = ~pal(val_bin), 
+        color = "white", 
+        weight = 1, 
+        opacity = 1, 
+        fillOpacity = .7, 
+        label = df_selected$name_pref, 
+        popup = popup_text
+      ) |> 
+      addLegend(
+        pal = pal, 
+        values = df_selected$val_bin, 
+        title = legend_title, 
+        position = "bottomright", 
+        labFormat = function(type, cuts, p) {
+          cuts <- as.numeric(cuts)
+          n <- length(cuts)
+          labels <- vector("character", n-1)
+          for (i in 1:(n-2)) {
+            labels[i] <- paste0(
+              format(cuts[i], big.mark = ",", scientific = FALSE), 
+              "～", 
+              format(cuts[i+1], big.mark = ",", scientific = FALSE)
+            )
+          }
+          labels[n-1] <- paste0(
+            format(cuts[n-1], big.mark = ",", scientific = FALSE), 
+            "以上"
+          )
+          return(labels)
+        }
+      )
+    
+    incProgress(1.0, detail = "まもなく表示されます")
+  })
+})
+
+output$map <- renderLeaflet({
+  leaflet() |> 
+    addTiles() |> 
+    setView(lng = 138.36834, lat = 38.01827, zoom = 6)
+})
+```
