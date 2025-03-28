@@ -1,0 +1,14 @@
+name: tax_status_heatmap
+title: tax_status_heatmap
+username: yo5uke
+account: yo5uke
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 14366879
+bundleId: 10019593
+url: https://yo5uke.shinyapps.io/tax_status_heatmap/
+version: 1
+quarto_version: 1.7.17
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE
