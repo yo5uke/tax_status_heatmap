@@ -7,7 +7,7 @@ format:
       - icon: house-door-fill
         href: https://yo5uke.com/pages/software/
       - icon: github
-        href: https://github.com/yo5uke/tax_revenue_heatmap
+        href: https://github.com/yo5uke/tax_status_heatmap
 lang: ja
 server: shiny
 ---
