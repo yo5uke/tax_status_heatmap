@@ -3,7 +3,7 @@
 このアプリは、国税庁の税務統計に基づき、所得税、法人税、消費税の都道府県の課税状況を地図上で可視化するShinyを使用したウェブアプリケーションです。  
 自治体ごとの変化を直感的に把握できるのが特徴です。
 
-リンク：[課税状況ヒートマップ](https://yo5uke.shinyapps.io/tax_revenue_heatmap/)
+リンク：[課税状況ヒートマップ](https://yo5uke.shinyapps.io/tax_status_heatmap/)
 
 ## 🔍 主な機能
 
@@ -52,9 +52,9 @@ MITライセンス
 ## 🔗 ソースコード
 
 GitHub リポジトリはこちら：  
-[https://github.com/yo5uke/tax_revenue_heatmap](https://github.com/yo5uke/tax_revenue_heatmap)
+https://github.com/yo5uke/tax_status_heatmap
 
 
 ## 公開日
 
-このドキュメントは令和7年3月24日に公開されました。
+このドキュメントは令和7年3月28日に更新されました。
